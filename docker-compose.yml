@@ -1,0 +1,40 @@
+version: "3"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    image: r1voucher_app
+    container_name: r1voucher_app
+    restart: always
+    working_dir: /app
+    command: >
+      bash -c "./r1voucher migrate -m /app && \
+               ./r1voucher serve"
+    ports:
+      - 1323
+    depends_on:
+      - mariadb
+      - redis
+
+
+  mariadb:
+    image: mariadb:10.2.14
+    restart: always
+    environment:
+      - MYSQL_DATABASE=r1voucher
+      - MYSQL_ROOT_PASSWORD=secret
+    ports:
+      - 3306
+    volumes:
+      - ./.docker/mariadb:/var/lib/mysql
+
+  redis:
+    image: redis:5.0.3-alpine
+    restart: always
+    ports:
+      - 6379
+
+
+
