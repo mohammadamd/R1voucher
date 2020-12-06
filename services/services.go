@@ -14,7 +14,7 @@ type Services struct {
 	Voucher  voucher.Voucher
 }
 
-func NewServices(repository *repositories.Repository, app config.ConfiguredApp) *Services {
+func NewServices(repository *repositories.Repository, app *config.ConfiguredApp) *Services {
 	return &Services{
 		Voucher:  creditVoucher.NewCreditVoucher(repository, app.Config.App.IncreaseChannelName),
 		Producer: redis.NewRedisProducer(repository),

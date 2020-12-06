@@ -20,9 +20,9 @@ type dbQE interface {
 }
 
 const (
-	validateVoucherQuery         = "SELECT (id, code, usable, amount) FROM vouchers WHERE code = ? limit 1"
-	redeemVoucherQuery           = "INSERT INTO redeemed_voucher (user_id, voucher_id) VALUES (?, ?)"
-	redeemVoucherCountQuery      = "SELECT COUNT(1) from redeemed_voucher WHERE code = ?"
+	validateVoucherQuery         = "SELECT id, code, usable, amount FROM vouchers WHERE code = ? limit 1"
+	redeemVoucherQuery           = "INSERT INTO redeemed_voucher (user_id, voucher_id, step) VALUES (?, ?, ?)"
+	redeemVoucherCountQuery      = "SELECT COUNT(1) from redeemed_voucher WHERE voucher_id = ?"
 	validateFirstTimeRedeemQuery = "SELECT 1 from redeemed_voucher WHERE voucher_id = ? AND user_id = ?"
 )
 
@@ -40,16 +40,20 @@ func NewVoucherRepository(db *sql.DB) *voucherRepository {
 func (v *voucherRepository) FindVoucherByCode(code string) (models.VoucherModel, error) {
 	var vm models.VoucherModel
 	rows, err := v.dbq.Query(validateVoucherQuery, code)
+	if err == sql.ErrNoRows {
+		return vm, InvalidVoucherCode
+	}
+
+	if err != nil {
+		return vm, err
+	}
+
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
 		if err != nil {
 			fmt.Println("failed to close rows: ", err)
 		}
 	}(rows)
-
-	if err != nil {
-		return vm, err
-	}
 
 	if rows.Next() == false {
 		return vm, InvalidVoucherCode
@@ -63,8 +67,8 @@ func (v *voucherRepository) FindVoucherByCode(code string) (models.VoucherModel,
 	return vm, nil
 }
 
-func (v *voucherRepository) InsertIntoRedeemedVoucher(userID, voucherID int) error {
-	rows, err := v.dbq.Exec(redeemVoucherQuery, userID, voucherID)
+func (v *voucherRepository) InsertIntoRedeemedVoucher(userID, voucherID, step int) error {
+	rows, err := v.dbq.Exec(redeemVoucherQuery, userID, voucherID, step)
 	if err != nil {
 		return err
 	}
@@ -83,26 +87,15 @@ func (v *voucherRepository) InsertIntoRedeemedVoucher(userID, voucherID int) err
 
 func (v *voucherRepository) IsUserRedeemedVoucherBefore(userID, voucherID int) (bool, error) {
 	rows, err := v.dbq.Query(validateFirstTimeRedeemQuery, voucherID, userID)
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-			fmt.Println("failed to close rows: ", err)
-		}
-	}(rows)
-
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
 
 	if err != nil {
+		fmt.Println("failed to check voucher redeemed before or not:", err)
 		return true, err
 	}
 
-	return true, nil
-}
-
-func (v *voucherRepository) GetRedeemedCount(code string) (int, error) {
-	rows, err := v.dbq.Query(redeemVoucherCountQuery, code)
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
 		if err != nil {
@@ -110,8 +103,32 @@ func (v *voucherRepository) GetRedeemedCount(code string) (int, error) {
 		}
 	}(rows)
 
+	if rows.Next() {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (v *voucherRepository) GetRedeemedCount(voucherID int) (int, error) {
+	rows, err := v.dbq.Query(redeemVoucherCountQuery, voucherID)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+
 	if err != nil {
 		return 0, err
+	}
+
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			fmt.Println("failed to close rows: ", err)
+		}
+	}(rows)
+
+	if rows.Next() == false {
+		return 0, nil
 	}
 
 	var i int
@@ -123,7 +140,7 @@ func (v *voucherRepository) GetRedeemedCount(code string) (int, error) {
 	return i, nil
 }
 
-func (v *voucherRepository) RedeemVoucher(userID int, voucher models.VoucherModel, closure func(userID int, voucher models.VoucherModel) error) error {
+func (v *voucherRepository) RedeemVoucher(userID int, voucher models.VoucherModel, getStep func(voucher models.VoucherModel) (int, error), success func(userID int, voucher models.VoucherModel) error) error {
 	trx, err := v.beginTransaction()
 	if err != nil {
 		return err
@@ -139,7 +156,7 @@ func (v *voucherRepository) RedeemVoucher(userID int, voucher models.VoucherMode
 		return VoucherAlreadyUsed
 	}
 
-	err = trx.InsertIntoRedeemedVoucher(userID, voucher.ID)
+	step, err := getStep(voucher)
 	if err != nil {
 		er := trx.rollbackTransaction()
 		if er != nil {
@@ -149,7 +166,17 @@ func (v *voucherRepository) RedeemVoucher(userID int, voucher models.VoucherMode
 		return err
 	}
 
-	err = closure(userID, voucher)
+	err = trx.InsertIntoRedeemedVoucher(userID, voucher.ID, step)
+	if err != nil {
+		er := trx.rollbackTransaction()
+		if er != nil {
+			return er
+		}
+
+		return err
+	}
+
+	err = success(userID, voucher)
 	if err != nil {
 		er := trx.rollbackTransaction()
 		if er != nil {
@@ -161,7 +188,6 @@ func (v *voucherRepository) RedeemVoucher(userID int, voucher models.VoucherMode
 
 	return trx.commitTransaction()
 }
-
 
 func (v *voucherRepository) beginTransaction() (*voucherRepository, error) {
 	tx, err := v.db.BeginTx(context.Background(), &sql.TxOptions{})

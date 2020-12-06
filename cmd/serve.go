@@ -26,9 +26,8 @@ func init() {
 func serve() {
 	ca := config.InitializeConfig()
 	rep := repositories.NewRepository(ca.DB, ca.RDB)
-	ser := services.NewServices(rep)
+	ser := services.NewServices(rep, ca)
 	hndl := handler.NewBaseHandler(ser)
-	go initializeStreamServer(ser, ca, hndl)
 	initializeHttpServer(hndl)
 }
 
@@ -39,10 +38,4 @@ func initializeHttpServer(handler *handler.BaseHandler) {
 	p.Use(e)
 	routes.RegisterRoutes(e, handler)
 	e.Logger.Fatal(e.Start(":1323"))
-}
-
-func initializeStreamServer(service *services.Services, config *config.ConfiguredApp, handler *handler.BaseHandler) {
-	ch := make(chan string)
-	go service.Consumer.Consume(ch, config.Config.App.IncreaseChannelName)
-	handler.Credit.HandleIncreaseRequestFromChannel(ch)
 }

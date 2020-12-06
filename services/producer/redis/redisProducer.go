@@ -15,5 +15,5 @@ func NewRedisProducer(repository *repositories.Repository) *redisProducer {
 }
 
 func (r *redisProducer) Produce(message []byte, channelName string) error {
-	return r.repository.Redis.PublishInChannel(message, channelName)
+	return r.repository.Redis.Enqueue(message, channelName)
 }

@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"github.com/go-redis/redis/v7"
+	"time"
 )
 
 type redisRepository struct {
@@ -14,27 +15,36 @@ func NewRedisRepository(client *redis.Client) *redisRepository {
 	}
 }
 
-func (r *redisRepository) SubscribeChannel(channelName string) <-chan *redis.Message {
-	p := r.client.Subscribe(channelName)
-	return p.Channel()
-}
-
-func (r *redisRepository) PublishInChannel(message []byte, channelName string) error {
-	_, err := r.client.Publish(channelName, message).Result()
+func (r *redisRepository) Dequeue(channelName string) (string, error) {
+	res, err := r.client.BLPop(0*time.Second, channelName).Result()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return res[0], nil
 }
 
-func (r *redisRepository) Increase(key string) error {
-	_, err := r.client.Incr(key).Result()
+func (r *redisRepository) Enqueue(message []byte, channelName string) error {
+	_, err := r.client.RPush(channelName, string(message)).Result()
+	return err
+}
+
+func (r *redisRepository) Increase(key string) (int, error) {
+	res, err := r.client.Incr(key).Result()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return int(res), nil
+}
+
+func (r *redisRepository) Decrease(key string) (int, error) {
+	res, err := r.client.Decr(key).Result()
+	if err != nil {
+		return 0, err
+	}
+
+	return int(res), nil
 }
 
 func (r *redisRepository) SetValue(key string, value interface{}) error {

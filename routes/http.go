@@ -7,5 +7,5 @@ import (
 
 func RegisterRoutes(e *echo.Echo, handler *handler.BaseHandler) {
 	api := e.Group("/api")
-	api.GET("/voucher/redeem", handler.Credit.HandleGetBalanceRequest())
+	api.POST("/voucher/redeem", handler.Voucher.RedeemVoucher())
 }

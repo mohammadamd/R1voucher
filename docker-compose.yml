@@ -12,12 +12,13 @@ services:
     command: >
       bash -c "./r1voucher migrate -m /app && \
                ./r1voucher serve"
+    volumes:
+      - ./env.yaml:/app/env.yaml
     ports:
       - 1323
     depends_on:
       - mariadb
       - redis
-
 
   mariadb:
     image: mariadb:10.2.14
@@ -35,6 +36,3 @@ services:
     restart: always
     ports:
       - 6379
-
-
-

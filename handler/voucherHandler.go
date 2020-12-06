@@ -39,8 +39,11 @@ func (vh *VoucherHandler) RedeemVoucher() func(c echo.Context) error {
 			return c.JSON(http.StatusUnprocessableEntity, map[string]interface{}{"message": "Entered voucher code is invalid"})
 		case repositories.VoucherAlreadyUsed:
 			return c.JSON(http.StatusUnprocessableEntity, map[string]interface{}{"message": "You have already used this code"})
+		default:
+			fmt.Println(err)
+			return echo.ErrInternalServerError
+		case nil:
+			return c.JSON(http.StatusOK, map[string]interface{}{"message": "Congratulation your credit will be added to your wallet soon"})
 		}
-
-		return c.JSON(http.StatusOK, map[string]interface{}{"message": "Congratulation your credit will be added to your wallet soon"})
 	}
 }
