@@ -30,8 +30,8 @@ type Redis struct {
 }
 
 type App struct {
-	LogLevel            bool   `yaml:"LOG_LEVEL"`
-	IncreaseChannelName string `yaml:"INCREASE_CHANNEL_NAME"`
+	LogLevel     bool   `yaml:"LOG_LEVEL"`
+	ComQueueName string `yaml:"COM_QUEUE_NAME"`
 }
 
 var cfg config

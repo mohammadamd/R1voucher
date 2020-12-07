@@ -16,7 +16,7 @@ type Services struct {
 
 func NewServices(repository *repositories.Repository, app *config.ConfiguredApp) *Services {
 	return &Services{
-		Voucher:  creditVoucher.NewCreditVoucher(repository, app.Config.App.IncreaseChannelName),
+		Voucher:  creditVoucher.NewCreditVoucher(repository, app.Config.App.ComQueueName),
 		Producer: redis.NewRedisProducer(repository),
 	}
 }
